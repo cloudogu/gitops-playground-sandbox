@@ -34,12 +34,27 @@ pipeline {
         BUILD_DATE = sh(script: 'date --rfc-3339 ns', returnStdout: true).trim()
         K3D_CLUSTER_NAME = "k3d-gop-cluster-${env.BUILD_ID}"
         FULL_IMAGE_TAG = "${env.DOCKER_REGISTRY_BASE_URL}/${env.DOCKER_IMAGE_NAME}:${env.SHORT_SHA}"
-        TAG_NAME = sh(returnStdout: true, script: "git fetch --tags && git --no-pager tag --points-at HEAD").trim()
+        TAG_NAME = ''
         // Shared docker args for integration tests
         INTEGRATION_TEST_DOCKER_ARGS = "-e KUBECONFIG=${env.WORKSPACE}/.kubeconfig.yaml -v maven-cache:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock -u :${env.BUILD_GROUP} --network=host --entrypoint ''"
     }
 
     stages {
+
+        stage('Resolve tag') {
+            steps {
+                withCredentials([usernamePassword(
+                        credentialsId: 'cesmarvin',
+                        usernameVariable: 'SCM_USERNAME',
+                        passwordVariable: 'SCM_TOKEN'
+                )]) {
+                    sh "git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' fetch --tags"
+                }
+                script {
+                    env.TAG_NAME = sh(returnStdout: true, script: 'git --no-pager tag --points-at HEAD').trim()
+                }
+            }
+        }
 
         stage('Build') {
 
