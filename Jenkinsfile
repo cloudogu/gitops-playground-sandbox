@@ -34,7 +34,6 @@ pipeline {
         BUILD_DATE = sh(script: 'date --rfc-3339 ns', returnStdout: true).trim()
         K3D_CLUSTER_NAME = "k3d-gop-cluster-${env.BUILD_ID}"
         FULL_IMAGE_TAG = "${env.DOCKER_REGISTRY_BASE_URL}/${env.DOCKER_IMAGE_NAME}:${env.SHORT_SHA}"
-        TAG_NAME = ''
         // Shared docker args for integration tests
         INTEGRATION_TEST_DOCKER_ARGS = "-e KUBECONFIG=${env.WORKSPACE}/.kubeconfig.yaml -v maven-cache:/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock -u :${env.BUILD_GROUP} --network=host --entrypoint ''"
     }
@@ -52,6 +51,7 @@ pipeline {
                 }
                 script {
                     env.TAG_NAME = sh(returnStdout: true, script: 'git --no-pager tag --points-at HEAD').trim()
+                    echo "Resolved tag: ${env.TAG_NAME ?: 'none'}"
                 }
             }
         }
