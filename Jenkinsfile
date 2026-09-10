@@ -66,7 +66,7 @@ pipeline {
 
                     if (params.performRelease) {
                         env.TAG_NAME = params.releaseVersion?.trim() ?: suggestedNext
-                        if (!(env.TAG_NAME =~ /^\d+\.\d+\.\d+\$/)) {
+                        if (!(env.TAG_NAME ==~ "^\\d+\\.\\d+\\.\\d+\$")) {
                             error("Release version '${env.TAG_NAME}' must match schema x.y.z")
                         }
                         if (sh(script: "git tag --list '${env.TAG_NAME}'", returnStdout: true).trim()) {
