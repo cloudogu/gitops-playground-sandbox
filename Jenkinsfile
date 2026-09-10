@@ -277,29 +277,31 @@ f                            profiles.each { profile ->
                 expression { return params.performRelease }
             }
             steps {
-                withCredentials([usernamePassword(
-                        credentialsId: 'cesmarvin',
-                        usernameVariable: 'SCM_USERNAME',
-                        passwordVariable: 'SCM_TOKEN'
-                )]) {
-                    sh """
-                        git tag '${env.TAG_NAME}'
-                        git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' push origin '${env.TAG_NAME}'
-                    """
-                }
-                withCredentials([usernamePassword(
-                        credentialsId: 'cesmarvin-ghcr',
-                        usernameVariable: 'GH_USERNAME',
-                        passwordVariable: 'GH_TOKEN'
-                )]) {
-                    docker.image(env.GOLANG_IMAGE).inside("--entrypoint ''") {
-                        sh '''
-                            apk add --no-cache github-cli
-                            gh release create "$TAG_NAME" \
-                                --repo "$GITHUB_REPOSITORY" \
-                                --title "$TAG_NAME" \
-                                --generate-notes
-                        '''
+                script {
+                    withCredentials([usernamePassword(
+                            credentialsId: 'cesmarvin',
+                            usernameVariable: 'SCM_USERNAME',
+                            passwordVariable: 'SCM_TOKEN'
+                    )]) {
+                        sh """
+                            git tag '${env.TAG_NAME}'
+                            git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' push origin '${env.TAG_NAME}'
+                        """
+                    }
+                    withCredentials([usernamePassword(
+                            credentialsId: 'cesmarvin-ghcr',
+                            usernameVariable: 'GH_USERNAME',
+                            passwordVariable: 'GH_TOKEN'
+                    )]) {
+                        docker.image(env.GOLANG_IMAGE).inside("--entrypoint ''") {
+                            sh '''
+                                apk add --no-cache github-cli
+                                gh release create "$TAG_NAME" \
+                                    --repo "$GITHUB_REPOSITORY" \
+                                    --title "$TAG_NAME" \
+                                    --generate-notes
+                            '''
+                        }
                     }
                 }
             }
