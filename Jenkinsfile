@@ -66,7 +66,7 @@ pipeline {
 
                     if (params.performRelease) {
                         env.TAG_NAME = params.releaseVersion?.trim() ?: suggestedNext
-                        if (!(env.TAG_NAME =~ /^\d+\.\d+\.\d+$/)) {
+                        if (!(env.TAG_NAME =~ /^\d+\.\d+\.\d+\$/)) {
                             error("Release version '${env.TAG_NAME}' must match schema x.y.z")
                         }
                         if (sh(script: "git tag --list '${env.TAG_NAME}'", returnStdout: true).trim()) {
@@ -419,6 +419,6 @@ String nextPatchVersion(String latestTag) {
     if (!latestTag) {
         return '0.0.1'
     }
-    def (major, minor, patch) = latestTag.tokenize('.').collect { it.toInteger() }
-    return "${major}.${minor}.${patch + 1}"
+    def parts = latestTag.tokenize('.').collect { it.toInteger() }
+    return "${parts[0]}.${parts[1]}.${parts[2] + 1}"
 }
