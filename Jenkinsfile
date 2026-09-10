@@ -238,7 +238,7 @@ pipeline {
                                     sh "KUBECONFIG=${env.WORKSPACE}/.kubeconfig.yaml $HOME/.local/bin/k3d cluster delete ${env.K3D_CLUSTER_NAME}"
                                 }
                             }
-f                            profiles.each { profile ->
+                            profiles.each { profile ->
                                 withK3dCluster(profile) {
 
                                     if (profile.startsWith('operator')) {
