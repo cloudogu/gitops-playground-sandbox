@@ -17,6 +17,8 @@ pipeline {
         booleanParam(defaultValue: false, name: 'forcePushImage', description: 'Pushes the image with the current git commit as tag, even when it is on a branch')
         booleanParam(defaultValue: false, name: 'noCache', description: 'Builds the docker image without cache')
         choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-profiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.')
+        booleanParam(defaultValue: false, name: 'performRelease', description: 'Creates a GitHub Release: tags HEAD, publishes SBOM assets to the release and pushes the image to GHCR.')
+        string(defaultValue: '', name: 'releaseVersion', description: 'Version to release, schema x.y.z. Leave empty to use the suggested next patch version. Only used when performRelease is checked.')
     }
 
     environment {
@@ -50,8 +52,31 @@ pipeline {
                     sh "git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' fetch --tags"
                 }
                 script {
-                    env.TAG_NAME = sh(returnStdout: true, script: 'git --no-pager tag --points-at HEAD').trim()
-                    echo "Resolved tag: ${env.TAG_NAME ?: 'none'}"
+                    def latestTag = sh(script: "git tag --list '[0-9]*.[0-9]*.[0-9]*' | sort -t. -k1,1n -k2,2n -k3,3n | tail -1", returnStdout: true).trim()
+                    def suggestedNext = nextPatchVersion(latestTag)
+
+                    // Refreshes the releaseVersion default shown on the next 'Build with Parameters' screen.
+                    properties([parameters([
+                            booleanParam(defaultValue: false, name: 'forcePushImage', description: 'Pushes the image with the current git commit as tag, even when it is on a branch'),
+                            booleanParam(defaultValue: false, name: 'noCache', description: 'Builds the docker image without cache'),
+                            choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-profiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.'),
+                            booleanParam(defaultValue: false, name: 'performRelease', description: 'Creates a GitHub Release: tags HEAD, publishes SBOM assets to the release and pushes the image to GHCR.'),
+                            string(defaultValue: suggestedNext, name: 'releaseVersion', description: "Version to release, schema x.y.z. Suggested next version based on latest tag ${latestTag ?: 'none'}. Only used when performRelease is checked.")
+                    ])])
+
+                    if (params.performRelease) {
+                        env.TAG_NAME = params.releaseVersion?.trim() ?: suggestedNext
+                        if (!(env.TAG_NAME =~ /^\d+\.\d+\.\d+$/)) {
+                            error("Release version '${env.TAG_NAME}' must match schema x.y.z")
+                        }
+                        if (sh(script: "git tag --list '${env.TAG_NAME}'", returnStdout: true).trim()) {
+                            error("Tag ${env.TAG_NAME} already exists - aborting release build.")
+                        }
+                        echo "Releasing version: ${env.TAG_NAME}"
+                    } else {
+                        env.TAG_NAME = sh(returnStdout: true, script: 'git --no-pager tag --points-at HEAD').trim()
+                        echo "Resolved tag: ${env.TAG_NAME ?: 'none'}"
+                    }
                 }
             }
         }
@@ -213,8 +238,7 @@ pipeline {
                                     sh "KUBECONFIG=${env.WORKSPACE}/.kubeconfig.yaml $HOME/.local/bin/k3d cluster delete ${env.K3D_CLUSTER_NAME}"
                                 }
                             }
-
-                            profiles.each { profile ->
+f                            profiles.each { profile ->
                                 withK3dCluster(profile) {
 
                                     if (profile.startsWith('operator')) {
@@ -243,6 +267,39 @@ pipeline {
                             junit testResults: "**/target/failsafe-reports/TEST-*.xml",
                                     allowEmptyResults: true
                         }
+                    }
+                }
+            }
+        }
+
+        stage('Create Release Tag') {
+            when {
+                expression { return params.performRelease }
+            }
+            steps {
+                withCredentials([usernamePassword(
+                        credentialsId: 'cesmarvin',
+                        usernameVariable: 'SCM_USERNAME',
+                        passwordVariable: 'SCM_TOKEN'
+                )]) {
+                    sh """
+                        git tag '${env.TAG_NAME}'
+                        git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' push origin '${env.TAG_NAME}'
+                    """
+                }
+                withCredentials([usernamePassword(
+                        credentialsId: 'cesmarvin-ghcr',
+                        usernameVariable: 'GH_USERNAME',
+                        passwordVariable: 'GH_TOKEN'
+                )]) {
+                    docker.image(env.GOLANG_IMAGE).inside("--entrypoint ''") {
+                        sh '''
+                            apk add --no-cache github-cli
+                            gh release create "$TAG_NAME" \
+                                --repo "$GITHUB_REPOSITORY" \
+                                --title "$TAG_NAME" \
+                                --generate-notes
+                        '''
                     }
                 }
             }
@@ -356,4 +413,12 @@ pipeline {
 
 boolean isTriggeredByTimer() {
     return !currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause').isEmpty()
+}
+
+String nextPatchVersion(String latestTag) {
+    if (!latestTag) {
+        return '0.0.1'
+    }
+    def (major, minor, patch) = latestTag.tokenize('.').collect { it.toInteger() }
+    return "${major}.${minor}.${patch + 1}"
 }
