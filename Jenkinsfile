@@ -19,6 +19,7 @@ pipeline {
         choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-profiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.')
         booleanParam(defaultValue: false, name: 'performRelease', description: 'Creates a GitHub Release: tags HEAD, publishes SBOM assets to the release and pushes the image to GHCR.')
         string(defaultValue: '', name: 'releaseVersion', description: 'Version to release, schema x.y.z. Leave empty to use the suggested next patch version. Only used when performRelease is checked.')
+        booleanParam(defaultValue: false, name: 'skipIntegrationTests', description: 'Skips the integration tests stage')
     }
 
     environment {
@@ -61,7 +62,8 @@ pipeline {
                             booleanParam(defaultValue: false, name: 'noCache', description: 'Builds the docker image without cache'),
                             choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-profiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.'),
                             booleanParam(defaultValue: false, name: 'performRelease', description: 'Creates a GitHub Release: tags HEAD, publishes SBOM assets to the release and pushes the image to GHCR.'),
-                            string(defaultValue: suggestedNext, name: 'releaseVersion', description: "Version to release, schema x.y.z. Suggested next version based on latest tag ${latestTag ?: 'none'}. Only used when performRelease is checked.")
+                            string(defaultValue: suggestedNext, name: 'releaseVersion', description: "Version to release, schema x.y.z. Suggested next version based on latest tag ${latestTag ?: 'none'}. Only used when performRelease is checked."),
+                            booleanParam(defaultValue: false, name: 'skipIntegrationTests', description: 'Skips the integration tests stage')
                     ])])
 
                     if (params.performRelease) {
@@ -176,6 +178,9 @@ pipeline {
                 }
 
                 stage('Integration tests') {
+                    when {
+                        expression { return !params.skipIntegrationTests }
+                    }
                     steps {
                         script {
                             def profiles = []
