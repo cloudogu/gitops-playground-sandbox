@@ -365,6 +365,15 @@ pipeline {
                                 gh release upload "$TAG_NAME" "$asset" "${asset}.sha256" \
                                     --repo "$GITHUB_REPOSITORY" \
                                     --clobber
+
+                                gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body > notes.md
+                                cat >> notes.md <<EOF
+
+## SBOM
+- [$asset](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG_NAME/$asset)
+- [${asset}.sha256](https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG_NAME/${asset}.sha256)
+EOF
+                                gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
                             '''
                         }
                         sh '''
