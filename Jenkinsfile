@@ -293,7 +293,7 @@ pipeline {
                             usernameVariable: 'GH_USERNAME',
                             passwordVariable: 'GH_TOKEN'
                     )]) {
-                        docker.image(env.GOLANG_IMAGE).inside("--entrypoint ''") {
+                        docker.image(env.GOLANG_IMAGE).inside("--entrypoint '' -u 0:0") {
                             sh '''
                                 apk add --no-cache github-cli
                                 gh release create "$TAG_NAME" \
@@ -351,7 +351,7 @@ pipeline {
                             usernameVariable: 'GH_USERNAME',
                             passwordVariable: 'GH_TOKEN'
                     )]) {
-                        docker.image(env.GOLANG_IMAGE).inside("--entrypoint ''") {
+                        docker.image(env.GOLANG_IMAGE).inside("--entrypoint '' -u 0:0") {
                             sh '''
                                 apk add --no-cache github-cli
                                 asset="gitops-playground-${TAG_NAME}.sbom.cdx.json"
