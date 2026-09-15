@@ -147,33 +147,22 @@ pipeline {
                         '''
                         sh 'sha256sum sbom.cdx.json > sbom.cdx.json.sha256'
 
-                        script {
-                            /* returnStatus prevents Jenkins from aborting immediately upon an exit code of 2 before the reports have been archived. */
-                            int grypeStatus = sh(
-                                    returnStatus: true,
-                                    script: '''docker run --rm \
-                                    -v "$WORKSPACE:/workspace" \
-                                    -u ":$BUILD_GROUP" \
-                                    -e NO_COLOR=1 \
-                                    "$GRYPE_IMAGE" sbom:/workspace/sbom.syft.json \
-                                        --output table=/workspace/vulnerabilities.txt \
-                                        --output sarif=/workspace/vulnerabilities.sarif \
-                                        --quiet \
-                                        --sort-by severity \
-                                        --fail-on critical
-                                '''
-                            )
-
-                            archiveArtifacts(artifacts: 'sbom.*, vulnerabilities.*', allowEmptyArchive: false)
-
-                            if (grypeStatus == 2) {
-                                error('Grype found one or more critical vulnerabilities.')
-                            }
-
-                            if (grypeStatus != 0) {
-                                error("Grype exited with exit-code ${grypeStatus} fehlgeschlagen.")
-                            }
+                        catchError(
+                                buildResult: 'SUCCESS',
+                                stageResult: 'UNSTABLE',
+                                catchInterruptions: false
+                        ) {
+                            sh '''docker run --rm -v $WORKSPACE:/workspace \
+                                         -v /var/run/docker.sock:/var/run/docker.sock:ro \
+                                         -u :$BUILD_GROUP \
+                                         -e NO_COLOR=1 \
+                                         $GRYPE_IMAGE sbom:/workspace/sbom.json \
+                                             --output table=/workspace/vulnerabilities.txt \
+                                             --output sarif=/workspace/vulnerabilities.sarif \
+                                             --sort-by severity --fail-on critical'''
                         }
+
+                        archiveArtifacts(artifacts: 'sbom.*, vulnerabilities.*', allowEmptyArchive: false)
                     }
                 }
 
