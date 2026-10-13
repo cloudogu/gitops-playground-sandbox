@@ -277,10 +277,21 @@ pipeline {
                             usernameVariable: 'SCM_USERNAME',
                             passwordVariable: 'SCM_TOKEN'
                     )]) {
-                        sh """
-                            git tag '${env.TAG_NAME}'
-                            git -c credential.helper='!f() { echo username=\$SCM_USERNAME; echo password=\$SCM_TOKEN; }; f' push origin '${env.TAG_NAME}'
-                        """
+                        // The key is stored with literal "\n" sequences, printf '%b' expands them
+                        withCredentials([string(credentialsId: 'cesmarvin_signing_gpg_privkey', variable: 'GPG_KEY')]) {
+                            sh '''
+                                export GNUPGHOME="$(mktemp -d)"
+                                trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
+                                printf '%b' "$GPG_KEY" | gpg --batch --import
+                                KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')
+                                # Tagger identity must match the key's UID, taken from the key itself
+                                UID_STR=$(gpg --list-secret-keys --with-colons "$KEY_ID" | awk -F: '/^uid/ {print $10; exit}')
+                                export GIT_COMMITTER_NAME="${UID_STR% <*}"
+                                export GIT_COMMITTER_EMAIL="${UID_STR##*<}"; GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL%>}"
+                                git -c user.signingkey="$KEY_ID" tag -s "$TAG_NAME" -m "$TAG_NAME"
+                                git -c credential.helper='!f() { echo username=$SCM_USERNAME; echo password=$SCM_TOKEN; }; f' push origin "$TAG_NAME"
+                            '''
+                        }
                     }
                     withCredentials([usernamePassword(
                             credentialsId: 'cesmarvin-ghcr',
