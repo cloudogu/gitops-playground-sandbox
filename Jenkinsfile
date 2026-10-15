@@ -62,7 +62,7 @@ pipeline {
                     properties([parameters([
                             booleanParam(defaultValue: false, name: 'forcePushImage', description: 'Pushes the image with the current git commit as tag, even when it is on a branch'),
                             booleanParam(defaultValue: false, name: 'noCache', description: 'Builds the docker image without cache'),
-                            choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-profiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.'),
+                            choice(name: 'chooseProfile', choices: ['full', 'minimal', 'all-prokfiles', 'full-prefix', 'content-examples', 'operator-full', 'operator-mandants'], description: 'Starts GOP with given profile only and execute tests which belongs to profile.'),
                             booleanParam(defaultValue: false, name: 'performRelease', description: 'Creates a GitHub Release: tags HEAD, publishes SBOM assets to the release and pushes the image to GHCR.'),
                             string(defaultValue: '', name: 'releaseVersion', description: "Version to release, schema x.y.z. Leave empty to use the next patch version after the latest remote tag (currently ${latestTag ?: 'none'}). Only used when performRelease is checked."),
                             booleanParam(defaultValue: false, name: 'skipIntegrationTests', description: 'Skips the integration tests stage')
